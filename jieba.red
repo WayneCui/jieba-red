@@ -15,18 +15,18 @@ DICT_WRITING: copy []
 DEFAULT_DICT: NONE
 DEFAULT_DICT_NAME: copy "dict.txt"
 
+GLOBAL_FREQ: NONE
+total: 0
+
 tokenizer: make object! [
     dictionary: NONE
-    FREQ: []
-    total: 0
     user_word_tag_tab: copy []
     initialized: false
     tmp_dir: NONE
     cache_file: %jieba.cache
 
     get_DAG: function [sentence][
-        
-        if (length? self/FREQ) == 0 [
+        if none? GLOBAL_FREQ [
             start: now/time
             gen_pfdict DEFAULT_DICT_NAME
             print rejoin ["gen_pfdict:" (now/time - start)]
@@ -40,8 +40,8 @@ tokenizer: make object! [
             frag: to-string sentence/(k)
             ; print frag
 
-            while [i <= N  and (not none? find self/FREQ frag) ][
-                if not zero? self/FREQ/(frag) [
+            while [i <= N  and (not none? find GLOBAL_FREQ frag) ][
+                if not zero? GLOBAL_FREQ/(frag) [
                     append tmplist i
                 ]
 
@@ -72,7 +72,6 @@ tokenizer: make object! [
             ][
                 foreach index list [
                     if index > key [
-                        print copy/part at sentence key (index - key + 1)
                         append result copy/part at sentence key (index - key + 1)
                         old-index: index
                     ]
@@ -83,19 +82,49 @@ tokenizer: make object! [
         result
     ]
 
-    cut_DAG_NO_HMM: function [][
+    cut-DAG-NO-HMM: function [ sentence ][
+        dag: self/get_DAG sentence
+        route: self/calc sentence dag
+        ; print route
+
+        x: 1
+        N: length? sentence
+        buf: copy []
+        result: collect [
+            while [x < N] [
+                y: route/(x)/2 + 1
+                L-word: copy/part at sentence x (y - x)
+                either (parse L-word [ some alphanum ]) and ((length? L-word) = 1) [
+                    append buf L-word
+                ][
+                    if not empty? buf [
+                        keep buf
+                        buf: copy []
+                    ]
+                    ; print rejoin ["L-word: " L-word]
+                    keep L-word
+                ]
+                x: y
+            ]
+
+            if  not empty? buf [
+                keep buf
+                buf: copy []
+            ]
+        ]
+
+        result
+    ]
+
+    cut_DAG: function [sentence][
         
     ]
 
-    cut_DAG: function [][
-        
-    ]
-
-    gen_pfdict: function [dictfilename][
+    gen_pfdict: function [dictfilename /extern total GLOBAL_FREQ][
         either exists? cache_file [
             cache: load cache_file
-            self/total: to-integer cache/2
-            self/FREQ: cache/1
+            total: to-integer cache/2
+            GLOBAL_FREQ: cache/1
         ][
             lfreq: make map! []
             ltotal: 0
@@ -114,12 +143,39 @@ tokenizer: make object! [
                 ]
             ]
 
-            self/FREQ: lfreq
-            self/total: ltotal
+            GLOBAL_FREQ: lfreq
+            total: ltotal
 
             write cache_file mold reduce [lfreq ltotal]
         ]
     ]   
+
+    calc: function [sentence [string!] DAG [map!] /extern total GLOBAL_FREQ ][
+        N: length? sentence 
+        route: make map! reduce [N + 1 0x0]
+        logtotal: log-e total
+
+        idx: N
+        until [
+            tmplist: DAG/(idx)
+
+            candidates: collect [
+                foreach i tmplist [
+                    rate: GLOBAL_FREQ/(copy/part at sentence idx (i - idx + 1))
+                    axis-x:  log-e (either (none? rate) or (rate <= 0) [1][rate] ) - logtotal + route/(i + 1)/1
+                    keep (to pair! reduce [axis-x i])
+                ]
+            ]
+
+            ; probe candidates
+            ; probe last sort candidates
+            route/(idx): last sort candidates
+
+            idx: idx - 1
+            idx <= 0
+        ]
+        route
+    ]
 ]
 
 
@@ -130,7 +186,7 @@ cut: function [
         }
         sentence "The str(unicode) to be segmented."
         /cut-all "Model type. True for full pattern, False for accurate pattern."
-        /HMM "Whether to use the Hidden Markov Model."
+        /no-HMM "Whether to use the Hidden Markov Model."
     ][
     
     either cut-all [
@@ -142,15 +198,16 @@ cut: function [
     ]
 
 
-    ; either cut-all [
-        
-    ; ][
-    ;     either HMM [
-
-    ;     ][
-
-    ;     ]
-    ; ]
+    cut-block: NONE
+    either cut-all [
+        cut-block: :tokenizer/cut-all
+    ][
+        either no-HMM [
+            cut-block: :tokenizer/cut-DAG-NO-HMM
+        ][
+            cut-block: :tokenizer/cut_DAG
+        ]
+    ]
 
     blocks: parse sentence [ 
         collect [
@@ -162,10 +219,8 @@ cut: function [
 
     result: copy []
     foreach blk blocks [
-        ; print blk
-
         if parse blk [ some re_han] [
-            foreach word tokenizer/cut-all blk [
+            foreach word cut-block blk [
                 append result word
             ]
         ]
@@ -176,6 +231,6 @@ cut: function [
 
 start: now/time
 sentence: "本质上是一个分布式数据库，允许多台服务器协同工作，每台服务器可以运行多个实例"
-probe cut/cut-all sentence
+probe cut/no-HMM sentence
 print rejoin ["cost:" (now/time - start)]
 
