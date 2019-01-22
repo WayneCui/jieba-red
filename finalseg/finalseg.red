@@ -34,8 +34,7 @@ viterbi: function [ observed [string!] ][
     repeat i ((length? observed) - 1) [
         append weight copy #()
         new-path: make map![]
-        repeat j 4 [
-            state: status/(j)
+        foreach state status [
             tmp: collect [
                 foreach prev-state prev-status/(state) [
                     keep prev-state
@@ -66,4 +65,4 @@ cut: function [ sentence ][
     
 ]
 
-probe viterbi "小明硕士毕业于中国科学院计算所"
+viterbi "小明硕士毕业于中国科学院计算所" ;should be ['B 'E 'B 'E 'B 'M 'E 'B 'E 'B 'M 'E 'B 'E 'S]
