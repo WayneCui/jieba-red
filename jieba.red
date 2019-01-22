@@ -1,5 +1,7 @@
 Red []
 
+do %finalseg/finalseg.red
+
 han: charset [#"^(4E00)" - #"^(9FD5)"]
 alpha: charset [#"a" - #"z" #"A" - #"Z"]
 num: charset [#"0" - #"9"]
@@ -116,8 +118,70 @@ tokenizer: make object! [
         result
     ]
 
-    cut_DAG: function [sentence][
-        
+    cut-DAG: function [sentence][
+        dag: self/get_DAG sentence
+        route: self/calc sentence dag
+
+        x: 1
+        N: length? sentence
+        buf: copy ""
+
+        collect [
+            while [x < N] [
+                y: route/(x)/2 + 1
+                L-word: copy/part at sentence x (y - x)
+
+                either y - x = 1 [
+                    append buf L-word
+                ] [
+                    if not empty? buf [
+                        either (length? buf) = 1 [
+                            keep buf
+                            buf: copy ""
+                        ] [
+                            either none? find GLOBAL_FREQ buf [
+                                recognized: finalseg/cut buf
+                                foreach t recognized [
+                                    keep t
+                                ]
+                            ] [
+                                foreach elem buf [
+                                    keep to string! elem
+                                ]
+                            ]
+
+                            buf: copy ""
+                        ]
+                    ]
+
+                    keep L-word
+                ]
+
+                x: y
+            ]
+
+            if not empty? buf [
+                case [
+                    (length? buf) = 1 [ keep buf ]
+                    none? find GLOBAL_FREQ buf []
+                ]
+
+                either (length? buf) = 1 [
+                    keep buf
+                ][
+                    either none? find GLOBAL_FREQ buf [
+                        recognized = finalseg/cut buf
+                        foreach t recognized [
+                            keep t
+                        ]
+                    ][
+                        foreach elem buf [
+                            keep to string! elem
+                        ]
+                    ]
+                ]
+            ]
+        ]
     ]
 
     gen_pfdict: function [dictfilename /extern total GLOBAL_FREQ][
@@ -205,7 +269,7 @@ cut: function [
         either no-HMM [
             cut-block: :tokenizer/cut-DAG-NO-HMM
         ][
-            cut-block: :tokenizer/cut_DAG
+            cut-block: :tokenizer/cut-DAG
         ]
     ]
 
@@ -231,6 +295,7 @@ cut: function [
 
 start: now/time
 sentence: "本质上是一个分布式数据库，允许多台服务器协同工作，每台服务器可以运行多个实例"
-probe cut/no-HMM sentence
+; sentence: "小明硕士毕业于中国科学院计算所"
+probe cut sentence
 print rejoin ["cost:" (now/time - start)]
 

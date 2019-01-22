@@ -121,7 +121,6 @@ finalseg: make object! [
     ]
 ]
 
-
-
-probe finalseg/viterbi "小明硕士毕业于中国科学院计算所" ;should be ['B 'E 'B 'E 'B 'M 'E 'B 'E 'B 'M 'E 'B 'E 'S]
-probe finalseg/cut "小明硕士毕业于中国科学院计算所" ;should be ["小明" "硕士" "毕业于" "中国" "科学院" "计算" "所"]
+;test 
+; probe finalseg/viterbi "小明硕士毕业于中国科学院计算所" ;should be ['B 'E 'B 'E 'B 'M 'E 'B 'E 'B 'M 'E 'B 'E 'S]
+; probe finalseg/cut "小明硕士毕业于中国科学院计算所" ;should be ["小明" "硕士" "毕业于" "中国" "科学院" "计算" "所"]
