@@ -2,6 +2,17 @@ Red [
     Title: ""
 ]
 
+han: charset [#"^(4E00)" - #"^(9FD5)"]
+alpha: charset [#"a" - #"z" #"A" - #"Z"]
+num: charset [#"0" - #"9"]
+alphanum: union alpha num
+non-space: charset [#"+" #"#" #"&" #"." #"_" #"-"]
+
+han-default: union union han alphanum non-space
+skip-default: charset [#"^^" #"^M" #" "]
+han-cut-all: han
+skip-cut-all: charset [not #"0"-#"9" #"a"-#"z" #"A"-#"Z" #"+" #"#" #"^^" #"^M"]  ;lf: #"^^" cr: #"^M"
+
 MIN_FLOAT: -3.14e100
 
 PROB_START: %prob_start.red
@@ -61,8 +72,51 @@ viterbi: function [ observed [string!] ][
     ]
 ]
 
+cut-block: function [sentence][
+    pos-list: viterbi sentence
+    len: length? sentence
+    begin: nexti: 0
+    result: copy []
+
+    result: collect [
+        repeat i len [
+            char: to string! sentence/(i)
+            pos: pos-list/(i)
+            switch pos [
+                'B [ begin: i ]
+                'E [ keep copy/part at sentence begin (i - begin + 1)  nexti: i + 1]
+                'S [ keep char nexti: i + 1]
+                'M []
+            ]
+        ]
+    ]
+
+    if nexti < len [
+        append result copy at sentence nexti
+    ]
+
+    result
+]
+
 cut: function [ sentence ][
-    
+    blocks: parse sentence [ 
+        collect [
+            any [
+                keep some han-default | skip
+            ]
+        ]
+    ]
+
+    collect [
+        foreach blk blocks [
+            if parse blk [ some han ] [
+                foreach word cut-block blk [
+                    keep word
+                ]
+            ]
+        ]
+    ]
 ]
 
 viterbi "小明硕士毕业于中国科学院计算所" ;should be ['B 'E 'B 'E 'B 'M 'E 'B 'E 'B 'M 'E 'B 'E 'S]
+cut "小明硕士毕业于中国科学院计算所" ;should be ["小明" "硕士" "毕业于" "中国" "科学院" "计算" "所"]
